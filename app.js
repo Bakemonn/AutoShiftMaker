@@ -58,6 +58,7 @@
 
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
+      deleteButton.className = 'delete-button';
       deleteButton.textContent = '削除';
       deleteButton.addEventListener('click', () => {
         patterns = patterns.filter((item) => item.id !== pattern.id);
@@ -108,6 +109,7 @@
 
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
+      deleteButton.className = 'delete-button';
       deleteButton.textContent = '削除';
       deleteButton.addEventListener('click', () => {
         workers = workers.filter((_, workerIndex) => workerIndex !== index);

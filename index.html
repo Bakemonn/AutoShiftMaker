@@ -16,7 +16,19 @@
     input, select, button { padding: 6px; font-size: 14px; }
     button { cursor: pointer; }
     ul { padding-left: 18px; }
-    li button { margin-left: 8px; }
+    li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .delete-button {
+      margin-left: 0;
+      padding: 4px 10px;
+      border: 1px solid #666;
+      background: #fff;
+      color: #000;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.2;
+      -webkit-appearance: none;
+      appearance: none;
+    }
     .error { color: #b00020; }
     .success { color: #006400; }
     table { border-collapse: collapse; width: 100%; max-width: 640px; }
