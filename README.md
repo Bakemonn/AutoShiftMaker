@@ -22,3 +22,14 @@
 ```bash
 npm test
 ```
+
+## GitHub Pages で公開する（スマホからアクセス）
+
+このアプリは静的ファイル（`index.html` / `app.js` / `scheduler.js`）のみで動作するため、GitHub Pages を使うとサーバーを別途用意せずに公開できます。
+
+1. GitHub のリポジトリで `Settings > Pages` を開く
+2. `Build and deployment` の `Source` を `GitHub Actions` に設定する
+3. `main` ブランチに push すると、`.github/workflows/deploy-pages.yml` のワークフローが自動的にビルド・公開を行う
+4. 公開後に表示される URL（例: `https://<ユーザー名>.github.io/<リポジトリ名>/`）にスマホのブラウザからアクセスする
+
+公開後は `Actions` タブでデプロイの状況を確認できます。データはブラウザの `localStorage` に保存されるため、公開した URL に端末ごとにアクセスして利用してください。
