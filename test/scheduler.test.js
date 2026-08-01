@@ -69,6 +69,36 @@ test('night shift workers get a rest day after overnight completion day', () => 
   }
 });
 
+test('aborts gracefully instead of hanging when the time budget is exceeded', () => {
+  const patterns = [
+    { id: 'a', name: 'Morning', maxPerWeek: 3, startHour: 6, endHour: 14 },
+    { id: 'b', name: 'Day', maxPerWeek: 3, startHour: 9, endHour: 18 },
+    { id: 'c', name: 'Evening', maxPerWeek: 3, startHour: 14, endHour: 22 },
+    { id: 'd', name: 'Night', maxPerWeek: 2, startHour: 22, endHour: 6 }
+  ];
+
+  const workers = Array.from({ length: 20 }, (_, i) => ({
+    name: `Worker${i}`,
+    patternIds: ['a', 'b', 'c', 'd']
+  }));
+
+  const hourlyRequirements = Array.from({ length: 24 }, (_, hour) => (hour >= 6 && hour < 22 ? 5 : 2));
+
+  const start = Date.now();
+  const result = generateSchedule({
+    month: '2026-08',
+    workers,
+    patterns,
+    hourlyRequirements,
+    maxConsecutiveDays: 3,
+    timeBudgetMs: 300
+  });
+  const elapsed = Date.now() - start;
+
+  assert.equal(result.success, false);
+  assert.ok(elapsed < 3000, `expected to abort quickly but took ${elapsed}ms`);
+});
+
 test('worker can be assigned from multiple allowed patterns', () => {
   const result = generateSchedule({
     month: '2026-08',
