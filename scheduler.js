@@ -111,13 +111,16 @@ function isOvernight(pattern) {
   return Number(pattern.endHour) <= Number(pattern.startHour);
 }
 
+const DEFAULT_TIME_BUDGET_MS = 8000;
+
 function generateSchedule(input) {
   const {
     month,
     workers,
     patterns,
     hourlyRequirements,
-    maxConsecutiveDays
+    maxConsecutiveDays,
+    timeBudgetMs
   } = input || {};
 
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -158,7 +161,9 @@ function generateSchedule(input) {
     }
 
     const hours = buildHourRange(pattern.startHour, pattern.endHour);
-    patternMap.set(pattern.id, { ...pattern, maxPerWeek: weeklyLimit, hours });
+    const hourSet = new Set(hours);
+    const score = hours.reduce((sum, hour) => sum + requirements[hour], 0);
+    patternMap.set(pattern.id, { ...pattern, maxPerWeek: weeklyLimit, hours, hourSet, score });
   }
 
   const preparedWorkers = workers.map((worker) => {
@@ -178,9 +183,29 @@ function generateSchedule(input) {
   const assignments = Array.from({ length: totalDays }, () => []);
   const initialState = createInitialState(preparedWorkers);
 
+  const startTime = Date.now();
+  const timeBudget = Number(timeBudgetMs) > 0 ? Number(timeBudgetMs) : DEFAULT_TIME_BUDGET_MS;
+  let timedOut = false;
+  let stepCount = 0;
+
+  function isOutOfBudget() {
+    if (timedOut) {
+      return true;
+    }
+    stepCount += 1;
+    if (stepCount % 500 === 0 && Date.now() - startTime > timeBudget) {
+      timedOut = true;
+    }
+    return timedOut;
+  }
+
   function assignDay(dayIndex, state) {
     if (dayIndex >= totalDays) {
       return true;
+    }
+
+    if (isOutOfBudget()) {
+      return false;
     }
 
     const weekKey = Math.floor(dayIndex / 7);
@@ -203,21 +228,20 @@ function generateSchedule(input) {
         return null;
       }
 
+      const maxScore = Math.max(...availablePatterns.map((pattern) => pattern.score));
+
       return {
         name,
-        availablePatterns
+        availablePatterns,
+        maxScore
       };
     }).filter(Boolean);
 
-    eligibleWorkers.sort((a, b) => {
-      const aScore = Math.max(...a.availablePatterns.map((pattern) => pattern.hours.reduce((score, hour) => score + requirements[hour], 0)));
-      const bScore = Math.max(...b.availablePatterns.map((pattern) => pattern.hours.reduce((score, hour) => score + requirements[hour], 0)));
-      return bScore - aScore;
-    });
+    eligibleWorkers.sort((a, b) => b.maxScore - a.maxScore);
 
     const coverage = Array(24).fill(0);
 
-    function canStillMeetWithRemainingWorkers(remainingWorkers) {
+    function canStillMeetWithRemainingWorkers(startIndex) {
       for (let hour = 0; hour < 24; hour += 1) {
         const need = Math.max(0, requirements[hour] - coverage[hour]);
         if (need === 0) {
@@ -225,8 +249,8 @@ function generateSchedule(input) {
         }
 
         let possible = 0;
-        for (const worker of remainingWorkers) {
-          if (worker.availablePatterns.some((pattern) => pattern.hours.includes(hour))) {
+        for (let i = startIndex; i < eligibleWorkers.length; i += 1) {
+          if (eligibleWorkers[i].availablePatterns.some((pattern) => pattern.hourSet.has(hour))) {
             possible += 1;
           }
         }
@@ -239,6 +263,10 @@ function generateSchedule(input) {
     }
 
     function tryChoose(workerIndex, chosen) {
+      if (isOutOfBudget()) {
+        return false;
+      }
+
       if (allRequirementsMet(requirements, coverage)) {
         const nextState = cloneState(state, preparedWorkers);
         const chosenMap = new Map(chosen.map((item) => [item.name, item.pattern]));
@@ -278,8 +306,7 @@ function generateSchedule(input) {
         return false;
       }
 
-      const remainingWorkers = eligibleWorkers.slice(workerIndex);
-      if (!canStillMeetWithRemainingWorkers(remainingWorkers)) {
+      if (!canStillMeetWithRemainingWorkers(workerIndex)) {
         return false;
       }
 
@@ -288,11 +315,7 @@ function generateSchedule(input) {
       }
 
       const worker = eligibleWorkers[workerIndex];
-      const sortedPatterns = [...worker.availablePatterns].sort((a, b) => {
-        const aScore = a.hours.reduce((score, hour) => score + requirements[hour], 0);
-        const bScore = b.hours.reduce((score, hour) => score + requirements[hour], 0);
-        return bScore - aScore;
-      });
+      const sortedPatterns = [...worker.availablePatterns].sort((a, b) => b.score - a.score);
 
       for (const pattern of sortedPatterns) {
         for (const hour of pattern.hours) {
@@ -318,6 +341,12 @@ function generateSchedule(input) {
 
   const success = assignDay(0, initialState);
   if (!success) {
+    if (timedOut) {
+      return {
+        success: false,
+        error: '計算に時間がかかりすぎたため処理を中断しました。条件を見直すか、勤務者数や期間を減らしてください。'
+      };
+    }
     return {
       success: false,
       error: '条件を満たすシフト表を作成できませんでした。条件を見直してください。'

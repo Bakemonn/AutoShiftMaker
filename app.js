@@ -208,15 +208,26 @@
     const maxConsecutiveDays = Number(maxConsecutiveInput.value);
     const hourlyRequirements = hourlyInputs.map((input) => Number(input.value || 0));
 
-    const result = window.AutoShiftScheduler.generateSchedule({
-      month,
-      workers,
-      patterns,
-      hourlyRequirements,
-      maxConsecutiveDays
-    });
+    generateButton.disabled = true;
+    output.innerHTML = '<p class="processing">シフト表を作成しています。しばらくお待ちください…</p>';
 
-    renderSchedule(result);
+    window.setTimeout(() => {
+      try {
+        const result = window.AutoShiftScheduler.generateSchedule({
+          month,
+          workers,
+          patterns,
+          hourlyRequirements,
+          maxConsecutiveDays
+        });
+
+        renderSchedule(result);
+      } catch (error) {
+        output.innerHTML = `<p class="error">${error.message}</p>`;
+      } finally {
+        generateButton.disabled = false;
+      }
+    }, 0);
   });
 
   renderPatterns();
