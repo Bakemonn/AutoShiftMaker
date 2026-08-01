@@ -52,7 +52,32 @@
 
     for (const pattern of patterns) {
       const li = document.createElement('li');
-      li.textContent = `${pattern.name}: 週${pattern.maxPerWeek}回 / ${String(pattern.startHour).padStart(2, '0')}:00〜${String(pattern.endHour).padStart(2, '0')}:00`;
+      const text = document.createElement('span');
+      text.textContent = `${pattern.name}: 週${pattern.maxPerWeek}回 / ${String(pattern.startHour).padStart(2, '0')}:00〜${String(pattern.endHour).padStart(2, '0')}:00`;
+      li.appendChild(text);
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.textContent = '削除';
+      deleteButton.addEventListener('click', () => {
+        patterns = patterns.filter((item) => item.id !== pattern.id);
+        workers = workers
+          .map((worker) => {
+            const workerPatternIds = Array.isArray(worker.patternIds)
+              ? worker.patternIds
+              : (worker.patternId ? [worker.patternId] : []);
+            return {
+              name: worker.name,
+              patternIds: workerPatternIds.filter((id) => id !== pattern.id)
+            };
+          })
+          .filter((worker) => worker.patternIds.length > 0);
+        savePatterns();
+        renderPatterns();
+        renderWorkers();
+        output.innerHTML = '<p class="success">勤務体系を削除しました。</p>';
+      });
+      li.appendChild(deleteButton);
       patternList.appendChild(li);
 
       const label = document.createElement('label');
@@ -68,7 +93,7 @@
 
   function renderWorkers() {
     workerList.innerHTML = '';
-    for (const worker of workers) {
+    for (const [index, worker] of workers.entries()) {
       const li = document.createElement('li');
       const workerPatternIds = Array.isArray(worker.patternIds)
         ? worker.patternIds
@@ -76,7 +101,20 @@
       const patternNames = workerPatternIds
         .map((id) => patterns.find((item) => item.id === id)?.name)
         .filter(Boolean);
-      li.textContent = `${worker.name}（${patternNames.length > 0 ? patternNames.join(' / ') : '不明な勤務体系'}）`;
+
+      const text = document.createElement('span');
+      text.textContent = `${worker.name}（${patternNames.length > 0 ? patternNames.join(' / ') : '不明な勤務体系'}）`;
+      li.appendChild(text);
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.textContent = '削除';
+      deleteButton.addEventListener('click', () => {
+        workers = workers.filter((_, workerIndex) => workerIndex !== index);
+        renderWorkers();
+        output.innerHTML = '<p class="success">勤務者を削除しました。</p>';
+      });
+      li.appendChild(deleteButton);
       workerList.appendChild(li);
     }
   }
