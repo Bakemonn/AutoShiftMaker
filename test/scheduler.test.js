@@ -46,7 +46,7 @@ test('night shift workers get a rest day after overnight completion day', () => 
       { name: 'Carol', patternId: 'night' }
     ],
     hourlyRequirements: Array.from({ length: 24 }, (_, hour) => (hour === 22 ? 1 : 0)),
-    maxConsecutiveDays: 7
+    maxConsecutiveDays: 31
   });
 
   assert.equal(result.success, true);
@@ -67,4 +67,24 @@ test('night shift workers get a rest day after overnight completion day', () => 
       assert.equal(set.has(day + 2), false);
     }
   }
+});
+
+test('worker can be assigned from multiple allowed patterns', () => {
+  const result = generateSchedule({
+    month: '2026-08',
+    patterns: [
+      { id: 'a', name: 'A', maxPerWeek: 31, startHour: 9, endHour: 13 },
+      { id: 'c', name: 'C', maxPerWeek: 31, startHour: 13, endHour: 17 }
+    ],
+    workers: [
+      { name: '山本', patternIds: ['a', 'c'] },
+      { name: '田中', patternIds: ['a'] }
+    ],
+    hourlyRequirements: Array.from({ length: 24 }, (_, hour) => (hour === 14 ? 1 : 0)),
+    maxConsecutiveDays: 31
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.assignments[0].shifts[0].name, '山本');
+  assert.equal(result.assignments[0].shifts[0].patternName, 'C');
 });

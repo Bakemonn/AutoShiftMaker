@@ -48,11 +48,32 @@ function cloneState(state, workers) {
   for (const worker of workers) {
     const name = worker.name;
     next.consecutive[name] = state.consecutive[name];
-    next.weeklyCounts[name] = { ...state.weeklyCounts[name] };
+    next.weeklyCounts[name] = {};
+    for (const [weekKey, patternCounts] of Object.entries(state.weeklyCounts[name])) {
+      next.weeklyCounts[name][weekKey] = { ...patternCounts };
+    }
     next.forcedOffDays[name] = new Set(state.forcedOffDays[name]);
   }
 
   return next;
+}
+
+function getPatternCount(state, workerName, weekKey, patternId) {
+  const weekCounts = state.weeklyCounts[workerName][weekKey];
+  if (!weekCounts) {
+    return 0;
+  }
+  return weekCounts[patternId] || 0;
+}
+
+function normalizeWorkerPatternIds(worker) {
+  if (Array.isArray(worker.patternIds)) {
+    return worker.patternIds;
+  }
+  if (worker.patternId) {
+    return [worker.patternId];
+  }
+  return [];
 }
 
 function allRequirementsMet(requirements, coverage) {
@@ -141,15 +162,16 @@ function generateSchedule(input) {
   }
 
   const preparedWorkers = workers.map((worker) => {
-    const pattern = patternMap.get(worker.patternId);
-    if (!worker.name || !pattern) {
+    const patternIds = normalizeWorkerPatternIds(worker);
+    const workerPatterns = patternIds.map((id) => patternMap.get(id)).filter(Boolean);
+
+    if (!worker.name || workerPatterns.length === 0) {
       throw new Error('勤務者の入力内容が不正です。');
     }
+
     return {
       name: worker.name,
-      patternId: worker.patternId,
-      pattern,
-      hours: pattern.hours
+      patterns: workerPatterns
     };
   });
 
@@ -162,41 +184,75 @@ function generateSchedule(input) {
     }
 
     const weekKey = Math.floor(dayIndex / 7);
-    const eligibleWorkers = preparedWorkers.filter((worker) => {
+    const eligibleWorkers = preparedWorkers.map((worker) => {
       const name = worker.name;
       if (state.forcedOffDays[name].has(dayIndex)) {
-        return false;
+        return null;
       }
 
       if (state.consecutive[name] >= maxConsecutive) {
-        return false;
+        return null;
       }
 
-      const weeklyCount = state.weeklyCounts[name][weekKey] || 0;
-      return weeklyCount < worker.pattern.maxPerWeek;
-    });
+      const availablePatterns = worker.patterns.filter((pattern) => {
+        const patternCount = getPatternCount(state, name, weekKey, pattern.id);
+        return patternCount < pattern.maxPerWeek;
+      });
+
+      if (availablePatterns.length === 0) {
+        return null;
+      }
+
+      return {
+        name,
+        availablePatterns
+      };
+    }).filter(Boolean);
 
     eligibleWorkers.sort((a, b) => {
-      const aScore = a.hours.reduce((score, hour) => score + requirements[hour], 0);
-      const bScore = b.hours.reduce((score, hour) => score + requirements[hour], 0);
+      const aScore = Math.max(...a.availablePatterns.map((pattern) => pattern.hours.reduce((score, hour) => score + requirements[hour], 0)));
+      const bScore = Math.max(...b.availablePatterns.map((pattern) => pattern.hours.reduce((score, hour) => score + requirements[hour], 0)));
       return bScore - aScore;
     });
 
     const coverage = Array(24).fill(0);
 
+    function canStillMeetWithRemainingWorkers(remainingWorkers) {
+      for (let hour = 0; hour < 24; hour += 1) {
+        const need = Math.max(0, requirements[hour] - coverage[hour]);
+        if (need === 0) {
+          continue;
+        }
+
+        let possible = 0;
+        for (const worker of remainingWorkers) {
+          if (worker.availablePatterns.some((pattern) => pattern.hours.includes(hour))) {
+            possible += 1;
+          }
+        }
+
+        if (possible < need) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     function tryChoose(workerIndex, chosen) {
       if (allRequirementsMet(requirements, coverage)) {
         const nextState = cloneState(state, preparedWorkers);
-        const chosenSet = new Set(chosen.map((worker) => worker.name));
+        const chosenMap = new Map(chosen.map((item) => [item.name, item.pattern]));
 
         for (const worker of preparedWorkers) {
           const name = worker.name;
-          if (chosenSet.has(name)) {
+          const chosenPattern = chosenMap.get(name);
+          if (chosenPattern) {
             nextState.consecutive[name] = state.consecutive[name] + 1;
-            const count = nextState.weeklyCounts[name][weekKey] || 0;
-            nextState.weeklyCounts[name][weekKey] = count + 1;
+            const weekCounts = nextState.weeklyCounts[name][weekKey] || {};
+            weekCounts[chosenPattern.id] = (weekCounts[chosenPattern.id] || 0) + 1;
+            nextState.weeklyCounts[name][weekKey] = weekCounts;
 
-            if (isOvernight(worker.pattern)) {
+            if (isOvernight(chosenPattern)) {
               const forcedOffDay = dayIndex + 2;
               if (forcedOffDay < totalDays) {
                 nextState.forcedOffDays[name].add(forcedOffDay);
@@ -207,7 +263,10 @@ function generateSchedule(input) {
           }
         }
 
-        assignments[dayIndex] = chosen.map((worker) => worker.name);
+        assignments[dayIndex] = chosen.map((item) => ({
+          name: item.name,
+          patternName: item.pattern.name
+        }));
         if (assignDay(dayIndex + 1, nextState)) {
           return true;
         }
@@ -220,7 +279,7 @@ function generateSchedule(input) {
       }
 
       const remainingWorkers = eligibleWorkers.slice(workerIndex);
-      if (!canStillMeetRequirements(requirements, coverage, remainingWorkers)) {
+      if (!canStillMeetWithRemainingWorkers(remainingWorkers)) {
         return false;
       }
 
@@ -229,18 +288,26 @@ function generateSchedule(input) {
       }
 
       const worker = eligibleWorkers[workerIndex];
-      for (const hour of worker.hours) {
-        coverage[hour] += 1;
-      }
+      const sortedPatterns = [...worker.availablePatterns].sort((a, b) => {
+        const aScore = a.hours.reduce((score, hour) => score + requirements[hour], 0);
+        const bScore = b.hours.reduce((score, hour) => score + requirements[hour], 0);
+        return bScore - aScore;
+      });
 
-      chosen.push(worker);
-      if (tryChoose(workerIndex + 1, chosen)) {
-        return true;
-      }
-      chosen.pop();
+      for (const pattern of sortedPatterns) {
+        for (const hour of pattern.hours) {
+          coverage[hour] += 1;
+        }
 
-      for (const hour of worker.hours) {
-        coverage[hour] -= 1;
+        chosen.push({ name: worker.name, pattern });
+        if (tryChoose(workerIndex + 1, chosen)) {
+          return true;
+        }
+        chosen.pop();
+
+        for (const hour of pattern.hours) {
+          coverage[hour] -= 1;
+        }
       }
 
       return false;
@@ -262,7 +329,8 @@ function generateSchedule(input) {
     return {
       day,
       date: `${month}-${String(day).padStart(2, '0')}`,
-      workers: names
+      workers: names.map((item) => item.name),
+      shifts: names
     };
   });
 

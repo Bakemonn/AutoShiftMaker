@@ -10,6 +10,8 @@
     section { margin-bottom: 24px; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 8px; max-width: 480px; }
     .hours-grid { display: grid; grid-template-columns: repeat(6, minmax(70px, 1fr)); gap: 8px; max-width: 640px; }
+    .pattern-options { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 6px; }
+    .pattern-options label { flex-direction: row; align-items: center; gap: 6px; }
     label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
     input, select, button { padding: 6px; font-size: 14px; }
     button { cursor: pointer; }
@@ -66,8 +68,8 @@
       <label>勤務者名
         <input id="workerName" type="text" placeholder="山田" />
       </label>
-      <label>勤務体系
-        <select id="workerPattern"></select>
+      <label>勤務可能な勤務体系（複数選択可）
+        <div id="workerPatternOptions"></div>
       </label>
     </div>
     <button id="addWorker" type="button">勤務者を追加</button>

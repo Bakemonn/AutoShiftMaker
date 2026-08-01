@@ -13,7 +13,7 @@
   const patternEndHourInput = document.getElementById('patternEndHour');
 
   const workerNameInput = document.getElementById('workerName');
-  const workerPatternSelect = document.getElementById('workerPattern');
+  const workerPatternOptions = document.getElementById('workerPatternOptions');
 
   const patternList = document.getElementById('patternList');
   const workerList = document.getElementById('workerList');
@@ -47,17 +47,22 @@
 
   function renderPatterns() {
     patternList.innerHTML = '';
-    workerPatternSelect.innerHTML = '';
+    workerPatternOptions.innerHTML = '';
+    workerPatternOptions.className = 'pattern-options';
 
     for (const pattern of patterns) {
       const li = document.createElement('li');
       li.textContent = `${pattern.name}: 週${pattern.maxPerWeek}回 / ${String(pattern.startHour).padStart(2, '0')}:00〜${String(pattern.endHour).padStart(2, '0')}:00`;
       patternList.appendChild(li);
 
-      const option = document.createElement('option');
-      option.value = pattern.id;
-      option.textContent = pattern.name;
-      workerPatternSelect.appendChild(option);
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = pattern.id;
+      checkbox.className = 'worker-pattern-checkbox';
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(pattern.name));
+      workerPatternOptions.appendChild(label);
     }
   }
 
@@ -65,8 +70,13 @@
     workerList.innerHTML = '';
     for (const worker of workers) {
       const li = document.createElement('li');
-      const pattern = patterns.find((item) => item.id === worker.patternId);
-      li.textContent = `${worker.name}（${pattern ? pattern.name : '不明な勤務体系'}）`;
+      const workerPatternIds = Array.isArray(worker.patternIds)
+        ? worker.patternIds
+        : (worker.patternId ? [worker.patternId] : []);
+      const patternNames = workerPatternIds
+        .map((id) => patterns.find((item) => item.id === id)?.name)
+        .filter(Boolean);
+      li.textContent = `${worker.name}（${patternNames.length > 0 ? patternNames.join(' / ') : '不明な勤務体系'}）`;
       workerList.appendChild(li);
     }
   }
@@ -78,7 +88,9 @@
     }
 
     const rows = result.assignments.map((item) => {
-      const workersText = item.workers.length > 0 ? item.workers.join('、') : '休み';
+      const workersText = item.shifts && item.shifts.length > 0
+        ? item.shifts.map((shift) => `${shift.name}（${shift.patternName}）`).join('、')
+        : '休み';
       return `<tr><td>${item.date}</td><td>${workersText}</td></tr>`;
     }).join('');
 
@@ -130,21 +142,24 @@
 
   addWorkerButton.addEventListener('click', () => {
     const name = workerNameInput.value.trim();
-    const patternId = workerPatternSelect.value;
+    const patternIds = Array.from(document.querySelectorAll('.worker-pattern-checkbox:checked')).map((input) => input.value);
 
     if (!name) {
       output.innerHTML = '<p class="error">勤務者名を入力してください。</p>';
       return;
     }
 
-    if (!patternId) {
-      output.innerHTML = '<p class="error">先に勤務体系を登録してください。</p>';
+    if (patternIds.length === 0) {
+      output.innerHTML = '<p class="error">勤務可能な勤務体系を1つ以上選択してください。</p>';
       return;
     }
 
-    workers.push({ name, patternId });
+    workers.push({ name, patternIds });
     renderWorkers();
     workerNameInput.value = '';
+    document.querySelectorAll('.worker-pattern-checkbox:checked').forEach((input) => {
+      input.checked = false;
+    });
     output.innerHTML = '<p class="success">勤務者を登録しました。</p>';
   });
 
