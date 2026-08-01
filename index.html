@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoShiftMaker</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; line-height: 1.4; }
+    h1, h2 { margin-bottom: 8px; }
+    section { margin-bottom: 24px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 8px; max-width: 480px; }
+    .hours-grid { display: grid; grid-template-columns: repeat(6, minmax(70px, 1fr)); gap: 8px; max-width: 640px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+    input, select, button { padding: 6px; font-size: 14px; }
+    button { cursor: pointer; }
+    ul { padding-left: 18px; }
+    .error { color: #b00020; }
+    .success { color: #006400; }
+    table { border-collapse: collapse; width: 100%; max-width: 640px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>AutoShiftMaker</h1>
+
+  <section>
+    <h2>作成条件</h2>
+    <div class="grid">
+      <label>対象月
+        <input id="month" type="month" />
+      </label>
+      <label>連続勤務日数（上限）
+        <input id="maxConsecutive" type="number" min="1" value="5" />
+      </label>
+    </div>
+  </section>
+
+  <section>
+    <h2>条件1: 時間ごとの必要勤務人数</h2>
+    <div class="hours-grid" id="hoursGrid"></div>
+  </section>
+
+  <section>
+    <h2>勤務体系登録</h2>
+    <div class="grid">
+      <label>勤務体系名
+        <input id="patternName" type="text" placeholder="A" />
+      </label>
+      <label>週の勤務回数
+        <input id="patternMaxPerWeek" type="number" min="1" value="3" />
+      </label>
+      <label>開始時刻（0〜23）
+        <input id="patternStartHour" type="number" min="0" max="23" value="14" />
+      </label>
+      <label>終了時刻（0〜23）
+        <input id="patternEndHour" type="number" min="0" max="23" value="18" />
+      </label>
+    </div>
+    <button id="addPattern" type="button">勤務体系を追加</button>
+    <ul id="patternList"></ul>
+  </section>
+
+  <section>
+    <h2>勤務者登録</h2>
+    <div class="grid">
+      <label>勤務者名
+        <input id="workerName" type="text" placeholder="山田" />
+      </label>
+      <label>勤務体系
+        <select id="workerPattern"></select>
+      </label>
+    </div>
+    <button id="addWorker" type="button">勤務者を追加</button>
+    <ul id="workerList"></ul>
+  </section>
+
+  <section>
+    <button id="generate" type="button">シフト表を作成</button>
+  </section>
+
+  <section id="output"></section>
+
+  <script>
+    const hoursGrid = document.getElementById('hoursGrid');
+    for (let hour = 0; hour < 24; hour += 1) {
+      const label = document.createElement('label');
+      label.textContent = `${String(hour).padStart(2, '0')}:00`;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.value = '0';
+      input.id = `hour-${hour}`;
+      label.appendChild(input);
+      hoursGrid.appendChild(label);
+    }
+  </script>
+  <script src="./scheduler.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

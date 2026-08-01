@@ -1,0 +1,169 @@
+(function () {
+  const STORAGE_KEY = 'autoshiftmaker.patterns';
+
+  const monthInput = document.getElementById('month');
+  const maxConsecutiveInput = document.getElementById('maxConsecutive');
+  const addPatternButton = document.getElementById('addPattern');
+  const addWorkerButton = document.getElementById('addWorker');
+  const generateButton = document.getElementById('generate');
+
+  const patternNameInput = document.getElementById('patternName');
+  const patternMaxPerWeekInput = document.getElementById('patternMaxPerWeek');
+  const patternStartHourInput = document.getElementById('patternStartHour');
+  const patternEndHourInput = document.getElementById('patternEndHour');
+
+  const workerNameInput = document.getElementById('workerName');
+  const workerPatternSelect = document.getElementById('workerPattern');
+
+  const patternList = document.getElementById('patternList');
+  const workerList = document.getElementById('workerList');
+  const output = document.getElementById('output');
+
+  const hourlyInputs = Array.from({ length: 24 }, (_, hour) => document.getElementById(`hour-${hour}`));
+
+  const now = new Date();
+  monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  let patterns = loadPatterns();
+  let workers = [];
+
+  function loadPatterns() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function savePatterns() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(patterns));
+  }
+
+  function renderPatterns() {
+    patternList.innerHTML = '';
+    workerPatternSelect.innerHTML = '';
+
+    for (const pattern of patterns) {
+      const li = document.createElement('li');
+      li.textContent = `${pattern.name}: 週${pattern.maxPerWeek}回 / ${String(pattern.startHour).padStart(2, '0')}:00〜${String(pattern.endHour).padStart(2, '0')}:00`;
+      patternList.appendChild(li);
+
+      const option = document.createElement('option');
+      option.value = pattern.id;
+      option.textContent = pattern.name;
+      workerPatternSelect.appendChild(option);
+    }
+  }
+
+  function renderWorkers() {
+    workerList.innerHTML = '';
+    for (const worker of workers) {
+      const li = document.createElement('li');
+      const pattern = patterns.find((item) => item.id === worker.patternId);
+      li.textContent = `${worker.name}（${pattern ? pattern.name : '不明な勤務体系'}）`;
+      workerList.appendChild(li);
+    }
+  }
+
+  function renderSchedule(result) {
+    if (!result.success) {
+      output.innerHTML = `<p class="error">${result.error}</p>`;
+      return;
+    }
+
+    const rows = result.assignments.map((item) => {
+      const workersText = item.workers.length > 0 ? item.workers.join('、') : '休み';
+      return `<tr><td>${item.date}</td><td>${workersText}</td></tr>`;
+    }).join('');
+
+    output.innerHTML = [
+      '<p class="success">シフト表を作成しました。</p>',
+      '<table>',
+      '<thead><tr><th>日付</th><th>勤務者</th></tr></thead>',
+      `<tbody>${rows}</tbody>`,
+      '</table>'
+    ].join('');
+  }
+
+  addPatternButton.addEventListener('click', () => {
+    const name = patternNameInput.value.trim();
+    const maxPerWeek = Number(patternMaxPerWeekInput.value);
+    const startHour = Number(patternStartHourInput.value);
+    const endHour = Number(patternEndHourInput.value);
+
+    if (!name) {
+      output.innerHTML = '<p class="error">勤務体系名を入力してください。</p>';
+      return;
+    }
+
+    if (!Number.isInteger(maxPerWeek) || maxPerWeek <= 0) {
+      output.innerHTML = '<p class="error">週の勤務回数は1以上の整数で入力してください。</p>';
+      return;
+    }
+
+    if (!Number.isInteger(startHour) || startHour < 0 || startHour > 23 || !Number.isInteger(endHour) || endHour < 0 || endHour > 23) {
+      output.innerHTML = '<p class="error">勤務時間は0〜23で入力してください。</p>';
+      return;
+    }
+
+    const pattern = {
+      id: `pattern-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name,
+      maxPerWeek,
+      startHour,
+      endHour
+    };
+
+    patterns.push(pattern);
+    savePatterns();
+    renderPatterns();
+
+    patternNameInput.value = '';
+    output.innerHTML = '<p class="success">勤務体系を登録しました。</p>';
+  });
+
+  addWorkerButton.addEventListener('click', () => {
+    const name = workerNameInput.value.trim();
+    const patternId = workerPatternSelect.value;
+
+    if (!name) {
+      output.innerHTML = '<p class="error">勤務者名を入力してください。</p>';
+      return;
+    }
+
+    if (!patternId) {
+      output.innerHTML = '<p class="error">先に勤務体系を登録してください。</p>';
+      return;
+    }
+
+    workers.push({ name, patternId });
+    renderWorkers();
+    workerNameInput.value = '';
+    output.innerHTML = '<p class="success">勤務者を登録しました。</p>';
+  });
+
+  generateButton.addEventListener('click', () => {
+    const month = monthInput.value;
+    const maxConsecutiveDays = Number(maxConsecutiveInput.value);
+    const hourlyRequirements = hourlyInputs.map((input) => Number(input.value || 0));
+
+    const result = window.AutoShiftScheduler.generateSchedule({
+      month,
+      workers,
+      patterns,
+      hourlyRequirements,
+      maxConsecutiveDays
+    });
+
+    renderSchedule(result);
+  });
+
+  renderPatterns();
+  renderWorkers();
+})();
