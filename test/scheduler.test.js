@@ -1,6 +1,27 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { generateSchedule } = require('../scheduler');
+const { generateSchedule, fillHourlyRequirements } = require('../scheduler');
+
+test('fillHourlyRequirements carries forward the previous value when blank', () => {
+  const raw = ['3', '', '', '5', '', ''];
+  const filled = fillHourlyRequirements(raw);
+
+  assert.deepEqual(filled.slice(0, 6), [3, 3, 3, 5, 5, 5]);
+});
+
+test('fillHourlyRequirements defaults to 0 when the first hour is blank', () => {
+  const raw = ['', '', '4'];
+  const filled = fillHourlyRequirements(raw);
+
+  assert.deepEqual(filled.slice(0, 3), [0, 0, 4]);
+});
+
+test('fillHourlyRequirements returns an array of 24 hours regardless of input length', () => {
+  const filled = fillHourlyRequirements(['2']);
+
+  assert.equal(filled.length, 24);
+  assert.ok(filled.every((value) => value === 2));
+});
 
 test('fails when hourly staffing requirements cannot be met', () => {
   const result = generateSchedule({

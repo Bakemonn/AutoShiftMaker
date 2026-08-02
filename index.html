@@ -107,6 +107,18 @@
       box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
     }
 
+    .hours-table input[type="number"]::placeholder {
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+
+    .hint {
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-top: -4px;
+      margin-bottom: 12px;
+    }
+
     .pattern-options {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -333,6 +345,7 @@
 
     <div class="card">
       <h2>時間帯ごとの必要勤務人数</h2>
+      <p class="hint">未入力の時間帯は、直前の時間帯と同じ人数として扱われます。</p>
       <div class="hours-table-wrapper">
         <table class="hours-table" id="hoursTable">
           <thead>
@@ -398,7 +411,11 @@
       const input = document.createElement('input');
       input.type = 'number';
       input.min = '0';
-      input.value = '0';
+      if (hour === 0) {
+        input.value = '0';
+      } else {
+        input.placeholder = '同上';
+      }
       input.id = `hour-${hour}`;
       td.appendChild(input);
       hoursInputRow.appendChild(td);
