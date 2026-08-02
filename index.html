@@ -5,110 +5,403 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AutoShiftMaker</title>
   <style>
-    body { font-family: sans-serif; margin: 24px; line-height: 1.4; }
-    h1, h2 { margin-bottom: 8px; }
-    section { margin-bottom: 24px; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 8px; max-width: 480px; }
-    .hours-grid { display: grid; grid-template-columns: repeat(6, minmax(70px, 1fr)); gap: 8px; max-width: 640px; }
-    .pattern-options { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 6px; }
-    .pattern-options label { flex-direction: row; align-items: center; gap: 6px; }
-    label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
-    input, select, button { padding: 6px; font-size: 14px; }
-    button { cursor: pointer; }
-    ul { padding-left: 18px; }
-    li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-    .delete-button {
-      margin-left: 0;
-      padding: 4px 10px;
-      border: 1px solid #666;
-      background: #fff;
-      color: #000;
-      border-radius: 4px;
+    :root {
+      --primary: #1a73e8;
+      --primary-hover: #1557b0;
+      --danger: #d93025;
+      --danger-hover: #b3261e;
+      --success: #1e8e3e;
+      --surface: #ffffff;
+      --background: #f8f9fa;
+      --border: #dadce0;
+      --text: #202124;
+      --text-secondary: #5f6368;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 24px;
+      line-height: 1.6;
+      background: var(--background);
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0 0 24px;
+      color: var(--primary);
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--primary);
+      color: var(--text);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .hours-table-wrapper {
+      overflow-x: auto;
+    }
+
+    .hours-table {
+      width: 100%;
+      border-collapse: collapse;
       font-size: 13px;
-      line-height: 1.2;
+    }
+
+    .hours-table th,
+    .hours-table td {
+      border: 1px solid var(--border);
+      padding: 6px 4px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .hours-table th {
+      background: var(--background);
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .hours-table input[type="number"] {
+      width: 44px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .hours-table input[type="number"]:focus {
+      border-color: var(--primary);
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+
+    .pattern-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+
+    .pattern-options label {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="month"],
+    select {
+      padding: 10px 12px;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    input[type="month"]:focus,
+    select:focus {
+      border-color: var(--primary);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: var(--shadow);
+    }
+
+    .btn-generate {
+      background: var(--success);
+      color: #fff;
+      padding: 12px 32px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .btn-generate:hover {
+      background: #1b7d36;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .btn:disabled {
+      cursor: progress;
+      opacity: 0.6;
+    }
+
+    .btn-add {
+      margin-top: 12px;
+    }
+
+    .registered-list {
+      list-style: none;
+      padding: 0;
+      margin: 12px 0 0;
+    }
+
+    .registered-list li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: var(--background);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .registered-list li span {
+      flex: 1;
+    }
+
+    .delete-button {
+      padding: 5px 12px;
+      border: 1px solid var(--danger);
+      background: transparent;
+      color: var(--danger);
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
       -webkit-appearance: none;
       appearance: none;
     }
-    .error { color: #b00020; }
-    .success { color: #006400; }
-    .processing { color: #555; }
-    button:disabled { cursor: progress; opacity: 0.7; }
-    table { border-collapse: collapse; width: 100%; max-width: 640px; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+
+    .delete-button:hover {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .error {
+      background: #fce8e6;
+      color: var(--danger);
+      border: 1px solid #f5c6c2;
+    }
+
+    .success {
+      background: #e6f4ea;
+      color: var(--success);
+      border: 1px solid #a8dab5;
+    }
+
+    .processing {
+      background: #e8f0fe;
+      color: var(--primary);
+      border: 1px solid #aecbfa;
+    }
+
+    .shift-table-wrapper {
+      overflow-x: auto;
+      margin-top: 16px;
+    }
+
+    table.shift-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+    }
+
+    table.shift-table th,
+    table.shift-table td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: center;
+    }
+
+    table.shift-table thead th {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      font-size: 12px;
+      position: sticky;
+      top: 0;
+    }
+
+    table.shift-table tbody tr:nth-child(even) {
+      background: var(--background);
+    }
+
+    table.shift-table tbody tr:hover {
+      background: #e8f0fe;
+    }
+
+    table.shift-table td.worker-cell {
+      text-align: left;
+      font-size: 12px;
+    }
+
+    .worker-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: #e8f0fe;
+      color: var(--primary);
+      font-size: 11px;
+      font-weight: 500;
+      margin: 1px 2px;
+    }
   </style>
 </head>
 <body>
-  <h1>AutoShiftMaker</h1>
+  <div class="container">
+    <h1>AutoShiftMaker</h1>
 
-  <section>
-    <h2>作成条件</h2>
-    <div class="grid">
-      <label>対象月
-        <input id="month" type="month" />
-      </label>
-      <label>連続勤務日数（上限）
-        <input id="maxConsecutive" type="number" min="1" value="5" />
-      </label>
+    <div class="card">
+      <h2>作成条件</h2>
+      <div class="grid">
+        <label>対象月
+          <input id="month" type="month" />
+        </label>
+        <label>連続勤務日数（上限）
+          <input id="maxConsecutive" type="number" min="1" value="5" />
+        </label>
+      </div>
     </div>
-  </section>
 
-  <section>
-    <h2>条件1: 時間ごとの必要勤務人数</h2>
-    <div class="hours-grid" id="hoursGrid"></div>
-  </section>
-
-  <section>
-    <h2>勤務体系登録</h2>
-    <div class="grid">
-      <label>勤務体系名
-        <input id="patternName" type="text" placeholder="A" />
-      </label>
-      <label>週の勤務回数
-        <input id="patternMaxPerWeek" type="number" min="1" value="3" />
-      </label>
-      <label>開始時刻（0〜23）
-        <input id="patternStartHour" type="number" min="0" max="23" value="14" />
-      </label>
-      <label>終了時刻（0〜23）
-        <input id="patternEndHour" type="number" min="0" max="23" value="18" />
-      </label>
+    <div class="card">
+      <h2>時間帯ごとの必要勤務人数</h2>
+      <div class="hours-table-wrapper">
+        <table class="hours-table" id="hoursTable">
+          <thead>
+            <tr id="hoursHeaderRow"></tr>
+          </thead>
+          <tbody>
+            <tr id="hoursInputRow"></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <button id="addPattern" type="button">勤務体系を追加</button>
-    <ul id="patternList"></ul>
-  </section>
 
-  <section>
-    <h2>勤務者登録</h2>
-    <div class="grid">
-      <label>勤務者名
-        <input id="workerName" type="text" placeholder="山田" />
-      </label>
-      <label>勤務可能な勤務体系（複数選択可）
-        <div id="workerPatternOptions"></div>
-      </label>
+    <div class="card">
+      <h2>勤務体系登録</h2>
+      <div class="grid">
+        <label>勤務体系名
+          <input id="patternName" type="text" placeholder="A" />
+        </label>
+        <label>週の勤務回数
+          <input id="patternMaxPerWeek" type="number" min="1" value="3" />
+        </label>
+        <label>開始時刻（0〜23）
+          <input id="patternStartHour" type="number" min="0" max="23" value="14" />
+        </label>
+        <label>終了時刻（0〜23）
+          <input id="patternEndHour" type="number" min="0" max="23" value="18" />
+        </label>
+      </div>
+      <button id="addPattern" type="button" class="btn btn-primary btn-add">勤務体系を追加</button>
+      <ul id="patternList" class="registered-list"></ul>
     </div>
-    <button id="addWorker" type="button">勤務者を追加</button>
-    <ul id="workerList"></ul>
-  </section>
 
-  <section>
-    <button id="generate" type="button">シフト表を作成</button>
-  </section>
+    <div class="card">
+      <h2>勤務者登録</h2>
+      <div class="grid">
+        <label>勤務者名
+          <input id="workerName" type="text" placeholder="山田" />
+        </label>
+        <label>勤務可能な勤務体系（複数選択可）
+          <div id="workerPatternOptions"></div>
+        </label>
+      </div>
+      <button id="addWorker" type="button" class="btn btn-primary btn-add">勤務者を追加</button>
+      <ul id="workerList" class="registered-list"></ul>
+    </div>
 
-  <section id="output"></section>
+    <div class="card" style="text-align: center;">
+      <button id="generate" type="button" class="btn btn-generate">シフト表を作成</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
 
   <script>
-    const hoursGrid = document.getElementById('hoursGrid');
+    const hoursHeaderRow = document.getElementById('hoursHeaderRow');
+    const hoursInputRow = document.getElementById('hoursInputRow');
     for (let hour = 0; hour < 24; hour += 1) {
-      const label = document.createElement('label');
-      label.textContent = `${String(hour).padStart(2, '0')}:00`;
+      const th = document.createElement('th');
+      th.textContent = `${String(hour).padStart(2, '0')}:00`;
+      hoursHeaderRow.appendChild(th);
+
+      const td = document.createElement('td');
       const input = document.createElement('input');
       input.type = 'number';
       input.min = '0';
       input.value = '0';
       input.id = `hour-${hour}`;
-      label.appendChild(input);
-      hoursGrid.appendChild(label);
+      td.appendChild(input);
+      hoursInputRow.appendChild(td);
     }
   </script>
   <script src="./scheduler.js"></script>

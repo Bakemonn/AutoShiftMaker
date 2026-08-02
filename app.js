@@ -76,7 +76,7 @@
         savePatterns();
         renderPatterns();
         renderWorkers();
-        output.innerHTML = '<p class="success">勤務体系を削除しました。</p>';
+        output.innerHTML = '<p class="message success">勤務体系を削除しました。</p>';
       });
       li.appendChild(deleteButton);
       patternList.appendChild(li);
@@ -114,7 +114,7 @@
       deleteButton.addEventListener('click', () => {
         workers = workers.filter((_, workerIndex) => workerIndex !== index);
         renderWorkers();
-        output.innerHTML = '<p class="success">勤務者を削除しました。</p>';
+        output.innerHTML = '<p class="message success">勤務者を削除しました。</p>';
       });
       li.appendChild(deleteButton);
       workerList.appendChild(li);
@@ -123,23 +123,65 @@
 
   function renderSchedule(result) {
     if (!result.success) {
-      output.innerHTML = `<p class="error">${result.error}</p>`;
+      output.innerHTML = `<div class="card"><p class="message error">${result.error}</p></div>`;
       return;
     }
 
+    const activeHours = [];
+    for (let hour = 0; hour < 24; hour += 1) {
+      const hasWorker = result.assignments.some((item) =>
+        item.shifts && item.shifts.some((shift) => {
+          const pattern = patterns.find((p) => p.name === shift.patternName);
+          if (!pattern) return false;
+          const start = Number(pattern.startHour);
+          const end = Number(pattern.endHour);
+          if (start === end) return true;
+          if (start < end) return hour >= start && hour < end;
+          return hour >= start || hour < end;
+        })
+      );
+      if (hasWorker) {
+        activeHours.push(hour);
+      }
+    }
+
+    const hourHeaders = activeHours.map((hour) =>
+      `<th>${String(hour).padStart(2, '0')}:00</th>`
+    ).join('');
+
     const rows = result.assignments.map((item) => {
-      const workersText = item.shifts && item.shifts.length > 0
-        ? item.shifts.map((shift) => `${shift.name}（${shift.patternName}）`).join('、')
-        : '休み';
-      return `<tr><td>${item.date}</td><td>${workersText}</td></tr>`;
+      const hourCells = activeHours.map((hour) => {
+        const workersInHour = (item.shifts || []).filter((shift) => {
+          const pattern = patterns.find((p) => p.name === shift.patternName);
+          if (!pattern) return false;
+          const start = Number(pattern.startHour);
+          const end = Number(pattern.endHour);
+          if (start === end) return true;
+          if (start < end) return hour >= start && hour < end;
+          return hour >= start || hour < end;
+        });
+        if (workersInHour.length === 0) {
+          return '<td></td>';
+        }
+        const badges = workersInHour.map((shift) =>
+          `<span class="worker-badge">${shift.name}</span>`
+        ).join('');
+        return `<td class="worker-cell">${badges}</td>`;
+      }).join('');
+      return `<tr><td>${item.date}</td>${hourCells}</tr>`;
     }).join('');
 
     output.innerHTML = [
-      '<p class="success">シフト表を作成しました。</p>',
-      '<table>',
-      '<thead><tr><th>日付</th><th>勤務者</th></tr></thead>',
+      '<div class="card">',
+      '<h2>シフト表</h2>',
+      '<p class="message success">シフト表を作成しました。</p>',
+      '<div class="shift-table-wrapper">',
+      '<table class="shift-table">',
+      `<thead><tr><th>日付</th>${hourHeaders}</tr></thead>`,
       `<tbody>${rows}</tbody>`,
-      '</table>'
+      '</table>',
+      '</div>',
+      '</div>'
     ].join('');
   }
 
@@ -150,17 +192,17 @@
     const endHour = Number(patternEndHourInput.value);
 
     if (!name) {
-      output.innerHTML = '<p class="error">勤務体系名を入力してください。</p>';
+      output.innerHTML = '<p class="message error">勤務体系名を入力してください。</p>';
       return;
     }
 
     if (!Number.isInteger(maxPerWeek) || maxPerWeek <= 0) {
-      output.innerHTML = '<p class="error">週の勤務回数は1以上の整数で入力してください。</p>';
+      output.innerHTML = '<p class="message error">週の勤務回数は1以上の整数で入力してください。</p>';
       return;
     }
 
     if (!Number.isInteger(startHour) || startHour < 0 || startHour > 23 || !Number.isInteger(endHour) || endHour < 0 || endHour > 23) {
-      output.innerHTML = '<p class="error">勤務時間は0〜23で入力してください。</p>';
+      output.innerHTML = '<p class="message error">勤務時間は0〜23で入力してください。</p>';
       return;
     }
 
@@ -177,7 +219,7 @@
     renderPatterns();
 
     patternNameInput.value = '';
-    output.innerHTML = '<p class="success">勤務体系を登録しました。</p>';
+    output.innerHTML = '<p class="message success">勤務体系を登録しました。</p>';
   });
 
   addWorkerButton.addEventListener('click', () => {
@@ -185,12 +227,12 @@
     const patternIds = Array.from(document.querySelectorAll('.worker-pattern-checkbox:checked')).map((input) => input.value);
 
     if (!name) {
-      output.innerHTML = '<p class="error">勤務者名を入力してください。</p>';
+      output.innerHTML = '<p class="message error">勤務者名を入力してください。</p>';
       return;
     }
 
     if (patternIds.length === 0) {
-      output.innerHTML = '<p class="error">勤務可能な勤務体系を1つ以上選択してください。</p>';
+      output.innerHTML = '<p class="message error">勤務可能な勤務体系を1つ以上選択してください。</p>';
       return;
     }
 
@@ -200,7 +242,7 @@
     document.querySelectorAll('.worker-pattern-checkbox:checked').forEach((input) => {
       input.checked = false;
     });
-    output.innerHTML = '<p class="success">勤務者を登録しました。</p>';
+    output.innerHTML = '<p class="message success">勤務者を登録しました。</p>';
   });
 
   generateButton.addEventListener('click', () => {
@@ -209,7 +251,7 @@
     const hourlyRequirements = hourlyInputs.map((input) => Number(input.value || 0));
 
     generateButton.disabled = true;
-    output.innerHTML = '<p class="processing">シフト表を作成しています。しばらくお待ちください…</p>';
+    output.innerHTML = '<p class="message processing">シフト表を作成しています。しばらくお待ちください…</p>';
 
     window.setTimeout(() => {
       try {
@@ -223,7 +265,7 @@
 
         renderSchedule(result);
       } catch (error) {
-        output.innerHTML = `<p class="error">${error.message}</p>`;
+        output.innerHTML = `<p class="message error">${error.message}</p>`;
       } finally {
         generateButton.disabled = false;
       }
