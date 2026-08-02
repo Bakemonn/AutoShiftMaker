@@ -248,7 +248,9 @@
   generateButton.addEventListener('click', () => {
     const month = monthInput.value;
     const maxConsecutiveDays = Number(maxConsecutiveInput.value);
-    const hourlyRequirements = hourlyInputs.map((input) => Number(input.value || 0));
+    const hourlyRequirements = window.AutoShiftScheduler.fillHourlyRequirements(
+      hourlyInputs.map((input) => input.value)
+    );
 
     generateButton.disabled = true;
     output.innerHTML = '<p class="message processing">シフト表を作成しています。しばらくお待ちください…</p>';

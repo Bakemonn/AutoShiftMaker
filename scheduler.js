@@ -20,6 +20,24 @@ function buildHourRange(startHour, endHour) {
   return hours;
 }
 
+function fillHourlyRequirements(rawValues) {
+  const values = Array.isArray(rawValues) ? rawValues : [];
+  let previousValue = 0;
+
+  return Array.from({ length: 24 }, (_, hour) => {
+    const raw = values[hour];
+    const trimmed = raw === undefined || raw === null ? '' : String(raw).trim();
+
+    if (trimmed === '') {
+      return previousValue;
+    }
+
+    const value = Number(trimmed);
+    previousValue = Number.isFinite(value) ? value : previousValue;
+    return previousValue;
+  });
+}
+
 function daysInMonth(year, monthIndex) {
   return new Date(year, monthIndex + 1, 0).getDate();
 }
@@ -373,6 +391,7 @@ function generateSchedule(input) {
 if (typeof module !== 'undefined') {
   module.exports = {
     buildHourRange,
+    fillHourlyRequirements,
     generateSchedule
   };
 }
@@ -380,6 +399,7 @@ if (typeof module !== 'undefined') {
 if (typeof window !== 'undefined') {
   window.AutoShiftScheduler = {
     buildHourRange,
+    fillHourlyRequirements,
     generateSchedule
   };
 }
