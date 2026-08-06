@@ -1,7 +1,7 @@
 {
   "name": "autoshiftmaker",
   "version": "1.0.0",
-  "description": "",
+  "description": "ブラウザで動作するシンプルなシフト表自動作成アプリ",
   "main": "index.js",
   "scripts": {
     "test": "node --test"
@@ -13,5 +13,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "type": "commonjs"
 }
