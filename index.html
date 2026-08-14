@@ -333,6 +333,7 @@
 
     <div class="card">
       <h2>作成条件</h2>
+      <button id="loadTestPattern" type="button" class="btn btn-primary btn-add">テストパターンを読み込む</button>
       <div class="grid">
         <label>対象月
           <input id="month" type="month" />
@@ -384,6 +385,9 @@
         <label>勤務者名
           <input id="workerName" type="text" placeholder="山田" />
         </label>
+        <label>月間公休日数
+          <input id="workerDaysOff" type="number" min="0" max="31" value="9" />
+        </label>
         <label>勤務可能な勤務体系（複数選択可）
           <div id="workerPatternOptions"></div>
         </label>
@@ -422,6 +426,7 @@
     }
   </script>
   <script src="./scheduler.js"></script>
+  <script src="./test-pattern.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

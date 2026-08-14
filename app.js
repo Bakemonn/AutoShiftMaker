@@ -6,6 +6,7 @@
   const addPatternButton = document.getElementById('addPattern');
   const addWorkerButton = document.getElementById('addWorker');
   const generateButton = document.getElementById('generate');
+  const loadTestPatternButton = document.getElementById('loadTestPattern');
 
   const patternNameInput = document.getElementById('patternName');
   const patternMaxPerWeekInput = document.getElementById('patternMaxPerWeek');
@@ -13,6 +14,7 @@
   const patternEndHourInput = document.getElementById('patternEndHour');
 
   const workerNameInput = document.getElementById('workerName');
+  const workerDaysOffInput = document.getElementById('workerDaysOff');
   const workerPatternOptions = document.getElementById('workerPatternOptions');
 
   const patternList = document.getElementById('patternList');
@@ -69,7 +71,8 @@
               : (worker.patternId ? [worker.patternId] : []);
             return {
               name: worker.name,
-              patternIds: workerPatternIds.filter((id) => id !== pattern.id)
+              patternIds: workerPatternIds.filter((id) => id !== pattern.id),
+              requiredDaysOff: worker.requiredDaysOff
             };
           })
           .filter((worker) => worker.patternIds.length > 0);
@@ -104,7 +107,8 @@
         .filter(Boolean);
 
       const text = document.createElement('span');
-      text.textContent = `${worker.name}（${patternNames.length > 0 ? patternNames.join(' / ') : '不明な勤務体系'}）`;
+      const daysOffText = worker.requiredDaysOff === undefined ? '' : ` / 公休${worker.requiredDaysOff}日`;
+      text.textContent = `${worker.name}（${patternNames.length > 0 ? patternNames.join(' / ') : '不明な勤務体系'}${daysOffText}）`;
       li.appendChild(text);
 
       const deleteButton = document.createElement('button');
@@ -224,6 +228,7 @@
 
   addWorkerButton.addEventListener('click', () => {
     const name = workerNameInput.value.trim();
+    const requiredDaysOff = Number(workerDaysOffInput.value);
     const patternIds = Array.from(document.querySelectorAll('.worker-pattern-checkbox:checked')).map((input) => input.value);
 
     if (!name) {
@@ -236,13 +241,35 @@
       return;
     }
 
-    workers.push({ name, patternIds });
+    if (!Number.isInteger(requiredDaysOff) || requiredDaysOff < 0 || requiredDaysOff > 31) {
+      output.innerHTML = '<p class="message error">公休日数は0〜31の整数で入力してください。</p>';
+      return;
+    }
+
+    workers.push({ name, patternIds, requiredDaysOff });
     renderWorkers();
     workerNameInput.value = '';
     document.querySelectorAll('.worker-pattern-checkbox:checked').forEach((input) => {
       input.checked = false;
     });
     output.innerHTML = '<p class="message success">勤務者を登録しました。</p>';
+  });
+
+  loadTestPatternButton.addEventListener('click', () => {
+    const testPattern = window.AutoShiftTestPattern;
+    patterns = testPattern.patterns.map((pattern) => ({ ...pattern }));
+    workers = testPattern.workers.map((worker) => ({
+      ...worker,
+      patternIds: [...worker.patternIds]
+    }));
+    maxConsecutiveInput.value = String(testPattern.maxConsecutiveDays);
+    hourlyInputs.forEach((input, hour) => {
+      input.value = String(testPattern.hourlyRequirements[hour]);
+    });
+    savePatterns();
+    renderPatterns();
+    renderWorkers();
+    output.innerHTML = '<p class="message success">指定のテストパターンを読み込みました。</p>';
   });
 
   generateButton.addEventListener('click', () => {

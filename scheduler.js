@@ -46,21 +46,24 @@ function createInitialState(workers) {
   const consecutive = {};
   const weeklyCounts = {};
   const forcedOffDays = {};
+  const workCounts = {};
 
   for (const worker of workers) {
     consecutive[worker.name] = 0;
     weeklyCounts[worker.name] = {};
     forcedOffDays[worker.name] = new Set();
+    workCounts[worker.name] = 0;
   }
 
-  return { consecutive, weeklyCounts, forcedOffDays };
+  return { consecutive, weeklyCounts, forcedOffDays, workCounts };
 }
 
 function cloneState(state, workers) {
   const next = {
     consecutive: {},
     weeklyCounts: {},
-    forcedOffDays: {}
+    forcedOffDays: {},
+    workCounts: {}
   };
 
   for (const worker of workers) {
@@ -71,6 +74,7 @@ function cloneState(state, workers) {
       next.weeklyCounts[name][weekKey] = { ...patternCounts };
     }
     next.forcedOffDays[name] = new Set(state.forcedOffDays[name]);
+    next.workCounts[name] = state.workCounts[name];
   }
 
   return next;
@@ -184,7 +188,7 @@ function generateSchedule(input) {
     patternMap.set(pattern.id, { ...pattern, maxPerWeek: weeklyLimit, hours, hourSet, score });
   }
 
-  const preparedWorkers = workers.map((worker) => {
+  const preparedWorkers = workers.map((worker, workerIndex) => {
     const patternIds = normalizeWorkerPatternIds(worker);
     const workerPatterns = patternIds.map((id) => patternMap.get(id)).filter(Boolean);
 
@@ -192,9 +196,19 @@ function generateSchedule(input) {
       throw new Error('勤務者の入力内容が不正です。');
     }
 
+    const rawRequiredDaysOff = worker.requiredDaysOff;
+    const requiredDaysOff = rawRequiredDaysOff === undefined || rawRequiredDaysOff === null || rawRequiredDaysOff === ''
+      ? null
+      : Number(rawRequiredDaysOff);
+    if (requiredDaysOff !== null && (!Number.isInteger(requiredDaysOff) || requiredDaysOff < 0 || requiredDaysOff > totalDays)) {
+      throw new Error('公休日数は対象月の日数以下の0以上の整数で指定してください。');
+    }
+
     return {
       name: worker.name,
-      patterns: workerPatterns
+      patterns: workerPatterns,
+      targetWorkDays: requiredDaysOff === null ? null : totalDays - requiredDaysOff,
+      scheduleOffset: (4 * workerIndex * workerIndex + 12 * workerIndex) % totalDays
     };
   });
 
@@ -219,7 +233,9 @@ function generateSchedule(input) {
 
   function assignDay(dayIndex, state) {
     if (dayIndex >= totalDays) {
-      return true;
+      return preparedWorkers.every((worker) =>
+        worker.targetWorkDays === null || state.workCounts[worker.name] === worker.targetWorkDays
+      );
     }
 
     if (isOutOfBudget()) {
@@ -227,13 +243,34 @@ function generateSchedule(input) {
     }
 
     const weekKey = Math.floor(dayIndex / 7);
+    const remainingDays = totalDays - dayIndex;
+    let impossible = false;
     const eligibleWorkers = preparedWorkers.map((worker) => {
       const name = worker.name;
-      if (state.forcedOffDays[name].has(dayIndex)) {
+      const workCount = state.workCounts[name];
+      const forcedOffDaysRemaining = [...state.forcedOffDays[name]]
+        .filter((forcedDay) => forcedDay >= dayIndex).length;
+      const availableRemainingDays = remainingDays - forcedOffDaysRemaining;
+      const isForcedOffToday = state.forcedOffDays[name].has(dayIndex);
+      const mustWorkToday = !isForcedOffToday && worker.targetWorkDays !== null
+        && workCount + availableRemainingDays === worker.targetWorkDays;
+
+      if (worker.targetWorkDays !== null
+        && (workCount > worker.targetWorkDays || workCount + availableRemainingDays < worker.targetWorkDays)) {
+        impossible = true;
+        return null;
+      }
+
+      if (worker.targetWorkDays !== null && workCount >= worker.targetWorkDays) {
+        return null;
+      }
+
+      if (isForcedOffToday) {
         return null;
       }
 
       if (state.consecutive[name] >= maxConsecutive) {
+        impossible ||= mustWorkToday;
         return null;
       }
 
@@ -243,6 +280,7 @@ function generateSchedule(input) {
       });
 
       if (availablePatterns.length === 0) {
+        impossible ||= mustWorkToday;
         return null;
       }
 
@@ -251,11 +289,182 @@ function generateSchedule(input) {
       return {
         name,
         availablePatterns,
-        maxScore
+        maxScore,
+        mustWorkToday,
+        targetWorkDays: worker.targetWorkDays,
+        scheduleOffset: worker.scheduleOffset,
+        preferWork: worker.targetWorkDays !== null
+          && ((dayIndex + worker.scheduleOffset) * worker.targetWorkDays) % totalDays < worker.targetWorkDays
       };
     }).filter(Boolean);
 
-    eligibleWorkers.sort((a, b) => b.maxScore - a.maxScore);
+    if (impossible) {
+      return false;
+    }
+
+    eligibleWorkers.sort((a, b) =>
+      Number(b.mustWorkToday) - Number(a.mustWorkToday)
+      || Number(b.preferWork) - Number(a.preferWork)
+      || b.maxScore - a.maxScore
+    );
+
+    const usesMonthlyDaysOff = preparedWorkers.every((worker) => worker.targetWorkDays !== null);
+    if (usesMonthlyDaysOff) {
+      const candidates = [];
+
+      function collectCandidates(workerIndex, chosenWorkers, penalty) {
+        if (workerIndex >= eligibleWorkers.length) {
+          candidates.push({ workers: [...chosenWorkers], penalty });
+          return;
+        }
+
+        const worker = eligibleWorkers[workerIndex];
+        if (!worker.mustWorkToday) {
+          collectCandidates(
+            workerIndex + 1,
+            chosenWorkers,
+            penalty + (worker.preferWork ? 1 : 0)
+          );
+        }
+
+        chosenWorkers.push(worker);
+        collectCandidates(
+          workerIndex + 1,
+          chosenWorkers,
+          penalty + (worker.preferWork ? 0 : 1)
+        );
+        chosenWorkers.pop();
+      }
+
+      collectCandidates(0, [], 0);
+      candidates.sort((a, b) => a.penalty - b.penalty || a.workers.length - b.workers.length);
+
+      function assignPatterns(workersForDay) {
+        const dailyCoverage = Array(24).fill(0);
+        const chosen = [];
+
+        function choosePattern(remainingWorkers) {
+          if (isOutOfBudget()) {
+            return null;
+          }
+          if (remainingWorkers.length === 0) {
+            return allRequirementsMet(requirements, dailyCoverage) ? [...chosen] : null;
+          }
+          if (!canStillMeetRequirements(
+            requirements,
+            dailyCoverage,
+            remainingWorkers.map((worker) => ({
+              hours: [...new Set(worker.availablePatterns.flatMap((pattern) => pattern.hours))]
+            }))
+          )) {
+            return null;
+          }
+
+          const unmetHours = requirements
+            .map((required, hour) => ({ hour, deficit: required - dailyCoverage[hour] }))
+            .filter((item) => item.deficit > 0);
+          let candidatePairs;
+          if (unmetHours.length === 0) {
+            const worker = [...remainingWorkers].sort((a, b) =>
+              a.availablePatterns.length - b.availablePatterns.length
+            )[0];
+            candidatePairs = worker.availablePatterns.map((pattern) => ({ worker, pattern }));
+          } else {
+            const targetHour = unmetHours.sort((a, b) => {
+              const optionCount = (item) => remainingWorkers.reduce(
+                (count, worker) => count + worker.availablePatterns.filter((pattern) => pattern.hourSet.has(item.hour)).length,
+                0
+              );
+              return optionCount(a) - optionCount(b) || b.deficit - a.deficit;
+            })[0].hour;
+            candidatePairs = remainingWorkers.flatMap((worker) =>
+              worker.availablePatterns
+                .filter((pattern) => pattern.hourSet.has(targetHour))
+                .map((pattern) => ({ worker, pattern }))
+            );
+          }
+
+          const marginalScore = (pattern) => pattern.hours.reduce(
+            (score, hour) => score + Math.max(0, requirements[hour] - dailyCoverage[hour]),
+            0
+          );
+          candidatePairs.sort((a, b) => {
+            const futureOffScore = ({ worker, pattern }) => {
+              if (!isOvernight(pattern)) return 0;
+              const overnightNeeded = requirements.some((required, hour) =>
+                (hour < 7 || hour >= 20) && dailyCoverage[hour] < required
+              );
+              if (!overnightNeeded) return -1;
+              const futureDay = dayIndex + 2;
+              if (futureDay >= totalDays) return 1;
+              const plannedWork = ((futureDay + worker.scheduleOffset) * worker.targetWorkDays) % totalDays
+                < worker.targetWorkDays;
+              return plannedWork ? 0 : 2;
+            };
+            return futureOffScore(b) - futureOffScore(a)
+              || marginalScore(b.pattern) - marginalScore(a.pattern)
+              || a.worker.availablePatterns.length - b.worker.availablePatterns.length;
+          });
+
+          for (const { worker, pattern } of candidatePairs) {
+            for (const hour of pattern.hours) dailyCoverage[hour] += 1;
+            chosen.push({ name: worker.name, pattern });
+            const result = choosePattern(remainingWorkers.filter((item) => item !== worker));
+            if (result) return result;
+            chosen.pop();
+            for (const hour of pattern.hours) dailyCoverage[hour] -= 1;
+          }
+          return null;
+        }
+
+        return choosePattern(workersForDay);
+      }
+
+      for (const candidate of candidates) {
+        if (isOutOfBudget()) return false;
+        const chosen = assignPatterns(candidate.workers);
+        if (!chosen) continue;
+
+        const nextState = cloneState(state, preparedWorkers);
+        const chosenMap = new Map(chosen.map((item) => [item.name, item.pattern]));
+        for (const worker of preparedWorkers) {
+          const name = worker.name;
+          const chosenPattern = chosenMap.get(name);
+          if (chosenPattern) {
+            nextState.consecutive[name] = state.consecutive[name] + 1;
+            nextState.workCounts[name] = state.workCounts[name] + 1;
+            const weekCounts = nextState.weeklyCounts[name][weekKey] || {};
+            weekCounts[chosenPattern.id] = (weekCounts[chosenPattern.id] || 0) + 1;
+            nextState.weeklyCounts[name][weekKey] = weekCounts;
+            if (isOvernight(chosenPattern)) {
+              const forcedOffDay = dayIndex + 2;
+              if (forcedOffDay < totalDays) nextState.forcedOffDays[name].add(forcedOffDay);
+            }
+          } else {
+            nextState.consecutive[name] = 0;
+          }
+        }
+
+        const daysAfterToday = totalDays - dayIndex - 1;
+        const targetsRemainPossible = preparedWorkers.every((worker) => {
+          const count = nextState.workCounts[worker.name];
+          const forcedDaysAfterToday = [...nextState.forcedOffDays[worker.name]]
+            .filter((forcedDay) => forcedDay > dayIndex).length;
+          return count <= worker.targetWorkDays
+            && count + daysAfterToday - forcedDaysAfterToday >= worker.targetWorkDays;
+        });
+        if (!targetsRemainPossible) continue;
+
+        assignments[dayIndex] = chosen.map((item) => ({
+          name: item.name,
+          patternName: item.pattern.name
+        }));
+        if (assignDay(dayIndex + 1, nextState)) return true;
+        assignments[dayIndex] = [];
+      }
+
+      return false;
+    }
 
     const coverage = Array(24).fill(0);
 
@@ -285,7 +494,7 @@ function generateSchedule(input) {
         return false;
       }
 
-      if (allRequirementsMet(requirements, coverage)) {
+      function tryNextDay() {
         const nextState = cloneState(state, preparedWorkers);
         const chosenMap = new Map(chosen.map((item) => [item.name, item.pattern]));
 
@@ -294,6 +503,7 @@ function generateSchedule(input) {
           const chosenPattern = chosenMap.get(name);
           if (chosenPattern) {
             nextState.consecutive[name] = state.consecutive[name] + 1;
+            nextState.workCounts[name] = state.workCounts[name] + 1;
             const weekCounts = nextState.weeklyCounts[name][weekKey] || {};
             weekCounts[chosenPattern.id] = (weekCounts[chosenPattern.id] || 0) + 1;
             nextState.weeklyCounts[name][weekKey] = weekCounts;
@@ -309,6 +519,21 @@ function generateSchedule(input) {
           }
         }
 
+        const daysAfterToday = totalDays - dayIndex - 1;
+        const targetsRemainPossible = preparedWorkers.every((worker) => {
+          if (worker.targetWorkDays === null) {
+            return true;
+          }
+          const count = nextState.workCounts[worker.name];
+          const forcedDaysAfterToday = [...nextState.forcedOffDays[worker.name]]
+            .filter((forcedDay) => forcedDay > dayIndex).length;
+          return count <= worker.targetWorkDays
+            && count + daysAfterToday - forcedDaysAfterToday >= worker.targetWorkDays;
+        });
+        if (!targetsRemainPossible) {
+          return false;
+        }
+
         assignments[dayIndex] = chosen.map((item) => ({
           name: item.name,
           patternName: item.pattern.name
@@ -320,34 +545,54 @@ function generateSchedule(input) {
         return false;
       }
 
-      if (workerIndex >= eligibleWorkers.length) {
-        return false;
-      }
-
-      if (!canStillMeetWithRemainingWorkers(workerIndex)) {
-        return false;
-      }
-
-      if (tryChoose(workerIndex + 1, chosen)) {
+      const requirementsMet = allRequirementsMet(requirements, coverage);
+      const remainingPreferredWorker = eligibleWorkers
+        .slice(workerIndex)
+        .some((worker) => worker.mustWorkToday || worker.preferWork);
+      if (requirementsMet && !remainingPreferredWorker && tryNextDay()) {
         return true;
+      }
+
+      if (workerIndex >= eligibleWorkers.length) {
+        return requirementsMet && tryNextDay();
+      }
+
+      if (!requirementsMet && !canStillMeetWithRemainingWorkers(workerIndex)) {
+        return false;
       }
 
       const worker = eligibleWorkers[workerIndex];
       const sortedPatterns = [...worker.availablePatterns].sort((a, b) => b.score - a.score);
 
-      for (const pattern of sortedPatterns) {
-        for (const hour of pattern.hours) {
-          coverage[hour] += 1;
-        }
+      function tryWorking() {
+        for (const pattern of sortedPatterns) {
+          for (const hour of pattern.hours) {
+            coverage[hour] += 1;
+          }
 
-        chosen.push({ name: worker.name, pattern });
-        if (tryChoose(workerIndex + 1, chosen)) {
+          chosen.push({ name: worker.name, pattern });
+          if (tryChoose(workerIndex + 1, chosen)) {
+            return true;
+          }
+          chosen.pop();
+
+          for (const hour of pattern.hours) {
+            coverage[hour] -= 1;
+          }
+        }
+        return false;
+      }
+
+      if (worker.mustWorkToday || worker.preferWork) {
+        if (tryWorking()) {
           return true;
         }
-        chosen.pop();
-
-        for (const hour of pattern.hours) {
-          coverage[hour] -= 1;
+        if (!worker.mustWorkToday && tryChoose(workerIndex + 1, chosen)) {
+          return true;
+        }
+      } else {
+        if (tryChoose(workerIndex + 1, chosen) || tryWorking()) {
+          return true;
         }
       }
 

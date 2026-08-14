@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { generateSchedule, fillHourlyRequirements } = require('../scheduler');
+const testPattern = require('../test-pattern');
 
 test('fillHourlyRequirements carries forward the previous value when blank', () => {
   const raw = ['3', '', '', '5', '', ''];
@@ -138,4 +139,39 @@ test('worker can be assigned from multiple allowed patterns', () => {
   assert.equal(result.success, true);
   assert.equal(result.assignments[0].shifts[0].name, '山本');
   assert.equal(result.assignments[0].shifts[0].patternName, 'C');
+});
+
+test('指定テストパターンの必要人数、公休日数、夜勤後公休を満たす', () => {
+  const result = generateSchedule({
+    month: '2026-08',
+    ...testPattern,
+    timeBudgetMs: 15000
+  });
+
+  assert.equal(result.success, true, JSON.stringify(result));
+
+  const workDaysByName = new Map(testPattern.workers.map((worker) => [worker.name, new Set()]));
+  for (const assignment of result.assignments) {
+    const coverage = Array(24).fill(0);
+    for (const shift of assignment.shifts) {
+      workDaysByName.get(shift.name).add(assignment.day);
+      const pattern = testPattern.patterns.find((item) => item.name === shift.patternName);
+      const hours = require('../scheduler').buildHourRange(pattern.startHour, pattern.endHour);
+      for (const hour of hours) coverage[hour] += 1;
+    }
+    testPattern.hourlyRequirements.forEach((required, hour) => {
+      assert.ok(coverage[hour] >= required, `${assignment.day}日 ${hour}時の人数が不足`);
+    });
+  }
+
+  for (const worker of testPattern.workers) {
+    const workDays = workDaysByName.get(worker.name);
+    assert.equal(31 - workDays.size, worker.requiredDaysOff, `${worker.name}の公休日数`);
+  }
+
+  for (const assignment of result.assignments) {
+    for (const shift of assignment.shifts.filter((item) => item.patternName === '1')) {
+      assert.equal(workDaysByName.get(shift.name).has(assignment.day + 2), false);
+    }
+  }
 });
