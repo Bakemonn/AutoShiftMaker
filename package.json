@@ -4,6 +4,7 @@
   "description": "ブラウザで動作するシンプルなシフト表自動作成アプリ",
   "main": "index.js",
   "scripts": {
+    "dev": "node server.js",
     "test": "node --test"
   },
   "repository": {
