@@ -25,6 +25,19 @@ test('トップページとJavaScriptを配信する', async (t) => {
 
   const testPatternResponse = await fetch(`${url}/test-pattern.js`);
   assert.equal(testPatternResponse.status, 200);
+
+  const exporterResponse = await fetch(`${url}/exporter.js`);
+  assert.equal(exporterResponse.status, 200);
+
+  const workerResponse = await fetch(`${url}/solver-worker.js`);
+  assert.equal(workerResponse.status, 200);
+
+  const milpResponse = await fetch(`${url}/milp-scheduler.js`);
+  assert.equal(milpResponse.status, 200);
+
+  const wasmResponse = await fetch(`${url}/vendor/highs/highs.wasm`);
+  assert.equal(wasmResponse.status, 200);
+  assert.equal(wasmResponse.headers.get('content-type'), 'application/wasm');
 });
 
 test('公開対象外のファイルは配信しない', async (t) => {

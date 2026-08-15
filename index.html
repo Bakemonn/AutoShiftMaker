@@ -143,9 +143,44 @@
       color: var(--text-secondary);
     }
 
+    .checkbox-label {
+      flex-direction: row;
+      align-items: center;
+      align-self: end;
+      min-height: 40px;
+      cursor: pointer;
+    }
+
+    .date-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+      gap: 6px;
+      max-height: 190px;
+      overflow-y: auto;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    .date-options label {
+      flex-direction: row;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .checkbox-label input {
+      width: 18px;
+      height: 18px;
+    }
+
     input[type="text"],
     input[type="number"],
     input[type="month"],
+    input[type="date"],
+    input[type="time"],
     select {
       padding: 10px 12px;
       font-size: 14px;
@@ -159,6 +194,8 @@
     input[type="text"]:focus,
     input[type="number"]:focus,
     input[type="month"]:focus,
+    input[type="date"]:focus,
+    input[type="time"]:focus,
     select:focus {
       border-color: var(--primary);
       outline: none;
@@ -206,6 +243,10 @@
       opacity: 0.6;
     }
 
+    .btn[hidden] {
+      display: none;
+    }
+
     .btn-add {
       margin-top: 12px;
     }
@@ -250,6 +291,22 @@
       color: #fff;
     }
 
+    .edit-button {
+      padding: 5px 12px;
+      border: 1px solid var(--primary);
+      background: transparent;
+      color: var(--primary);
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .edit-button:hover {
+      background: var(--primary);
+      color: #fff;
+    }
+
     .message {
       padding: 12px 16px;
       border-radius: 6px;
@@ -278,6 +335,23 @@
     .shift-table-wrapper {
       overflow-x: auto;
       margin-top: 16px;
+    }
+
+    .export-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 16px 0 8px;
+    }
+
+    .time-select-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .time-select-group select {
+      min-width: 72px;
     }
 
     table.shift-table {
@@ -325,6 +399,11 @@
       font-weight: 500;
       margin: 1px 2px;
     }
+
+    .temporary-absence-badge {
+      background: #fce8e6;
+      color: var(--danger);
+    }
   </style>
 </head>
 <body>
@@ -338,10 +417,8 @@
         <label>対象月
           <input id="month" type="month" />
         </label>
-        <label>連続勤務日数（上限）
-          <input id="maxConsecutive" type="number" min="1" value="5" />
-        </label>
       </div>
+      <p class="hint">連続勤務は最大4日です。</p>
     </div>
 
     <div class="card">
@@ -365,14 +442,15 @@
         <label>勤務体系名
           <input id="patternName" type="text" placeholder="A" />
         </label>
-        <label>週の勤務回数
-          <input id="patternMaxPerWeek" type="number" min="1" value="3" />
-        </label>
         <label>開始時刻（0〜23）
           <input id="patternStartHour" type="number" min="0" max="23" value="14" />
         </label>
         <label>終了時刻（0〜23）
           <input id="patternEndHour" type="number" min="0" max="23" value="18" />
+        </label>
+        <label class="checkbox-label">
+          <input id="patternNextDayOff" type="checkbox" />
+          翌日を公休にする
         </label>
       </div>
       <button id="addPattern" type="button" class="btn btn-primary btn-add">勤務体系を追加</button>
@@ -391,13 +469,47 @@
         <label>勤務可能な勤務体系（複数選択可）
           <div id="workerPatternOptions"></div>
         </label>
+        <label>希望休（複数選択可）
+          <div id="workerRequestedDaysOffOptions" class="date-options"></div>
+        </label>
       </div>
       <button id="addWorker" type="button" class="btn btn-primary btn-add">勤務者を追加</button>
+      <button id="saveRequestedDaysOff" type="button" class="btn btn-primary btn-add" hidden>希望休を更新</button>
+      <button id="cancelRequestedDaysOffEdit" type="button" class="btn btn-add" hidden>編集をキャンセル</button>
       <ul id="workerList" class="registered-list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>勤務人数対象外時間の登録</h2>
+      <p class="hint">ヘルプや委員会活動など、出勤日として勤務日数に数える一方、指定時間はシフト上の勤務人数に含めない条件を登録します。</p>
+      <div class="grid">
+        <label>担当者（複数選択可）
+          <div id="absenceWorkerOptions" class="pattern-options"></div>
+        </label>
+        <label>抜ける日
+          <input id="absenceDate" type="date" />
+        </label>
+        <label>抜ける時間（開始）
+          <span class="time-select-group">
+            <select id="absenceStartHour" aria-label="抜ける時間（開始）の時"></select>時
+            <select id="absenceStartMinute" aria-label="抜ける時間（開始）の分"></select>分
+          </span>
+        </label>
+        <label>抜ける時間（終了）
+          <span class="time-select-group">
+            <select id="absenceEndHour" aria-label="抜ける時間（終了）の時"></select>時
+            <select id="absenceEndMinute" aria-label="抜ける時間（終了）の分"></select>分
+          </span>
+        </label>
+      </div>
+      <button id="saveAbsence" type="button" class="btn btn-primary btn-add">対象外時間を追加</button>
+      <button id="cancelAbsenceEdit" type="button" class="btn btn-add" hidden>編集をキャンセル</button>
+      <ul id="absenceList" class="registered-list"></ul>
     </div>
 
     <div class="card" style="text-align: center;">
       <button id="generate" type="button" class="btn btn-generate">シフト表を作成</button>
+      <button id="cancelGeneration" type="button" class="btn btn-add" hidden>計算をキャンセル</button>
     </div>
 
     <div id="output"></div>
@@ -424,9 +536,33 @@
       td.appendChild(input);
       hoursInputRow.appendChild(td);
     }
+
+    const absenceStartHour = document.getElementById('absenceStartHour');
+    const absenceEndHour = document.getElementById('absenceEndHour');
+    for (let hour = 0; hour < 24; hour += 1) {
+      for (const select of [absenceStartHour, absenceEndHour]) {
+        const option = document.createElement('option');
+        option.value = String(hour).padStart(2, '0');
+        option.textContent = String(hour).padStart(2, '0');
+        select.appendChild(option);
+      }
+    }
+    const absenceStartMinute = document.getElementById('absenceStartMinute');
+    const absenceEndMinute = document.getElementById('absenceEndMinute');
+    for (const minute of ['00', '15', '30', '45']) {
+      for (const select of [absenceStartMinute, absenceEndMinute]) {
+        const option = document.createElement('option');
+        option.value = minute;
+        option.textContent = minute;
+        select.appendChild(option);
+      }
+    }
+    absenceStartHour.value = '12';
+    absenceEndHour.value = '13';
   </script>
   <script src="./scheduler.js"></script>
   <script src="./test-pattern.js"></script>
+  <script src="./exporter.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

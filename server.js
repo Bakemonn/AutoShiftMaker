@@ -9,11 +9,17 @@ const publicFiles = new Map([
   ['/app.js', 'app.js'],
   ['/scheduler.js', 'scheduler.js'],
   ['/test-pattern.js', 'test-pattern.js'],
+  ['/exporter.js', 'exporter.js'],
+  ['/milp-scheduler.js', 'milp-scheduler.js'],
+  ['/solver-worker.js', 'solver-worker.js'],
+  ['/vendor/highs/highs.js', 'vendor/highs/highs.js'],
+  ['/vendor/highs/highs.wasm', 'vendor/highs/highs.wasm'],
 ]);
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.wasm': 'application/wasm',
 };
 
 function createServer() {
